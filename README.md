@@ -1,4 +1,4 @@
-# Laporan Resmi Praktikum Sisop-2-2024-MH-IT01
+# Laporan Resmi Praktikum Sisop-3-2024-MH-IT01
 
 ## Anggota
 ### Nayla Raissa Azzahra (5027231054)
