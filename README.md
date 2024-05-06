@@ -7,24 +7,24 @@
 
 ## Ketentuan
 ### Struktur repository seperti berikut : 
-			—soal_1:
-				— auth.c
-				— rate.c
-				— db.c
+	—soal_1:
+		— auth.c
+		— rate.c
+		— db.c
                                     
-      —soal_2:
-      	— dudududu.c
+	—soal_2:
+		— dudududu.c
 				
-			—soal_3:
-				— actions.c
-				— driver.c
-				— paddock.c
+	—soal_3:
+		— actions.c
+		— driver.c
+		— paddock.c
 				
-			—soal_4:
-				— client/
-					— client.c 
-				— server/
-					— server.c
+	—soal_4:
+		— client/
+			— client.c 
+		— server/
+			— server.c
      
 ## Soal 1
 > Rafael (5027231019)
