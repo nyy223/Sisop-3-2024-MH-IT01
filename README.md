@@ -107,3 +107,34 @@
         ├── actions.c
         ├── paddock.c
         └── race.log
+
+## Soal 4
+> Nayla 5027231054
+
+Soal nomor 4 menyuruh kita untuk membuat program untuk menghubungkan client dan server melalui socket. Client berfungsi sebagai pengirim pesan dan menerima pesan dari server, sedangkan server berfungsi sebagai penerima pesan dari client dan hanya menampilkan pesan perintah client saja.  
+
+Ketentuan command untuk dikirimkan ke server dan ditampilkan hasilnya di client adalah:
+* Menampilkan seluruh judul
+* Menampilkan judul berdasarkan genre
+* Menampilkan judul berdasarkan hari
+* Menampilkan status berdasarkan berdasarkan judul
+* Menambahkan anime ke dalam file myanimelist.csv
+* Melakukan edit anime berdasarkan judul
+* Melakukan delete berdasarkan judul
+* Selain command yang diberikan akan menampilkan tulisan “Invalid Command”
+* Jika user mengirim pesan “exit” dari sisi client, maka koneksi antara server dan client akan terputus
+
+Hasil dari penambahan, perubahan, dan penghapusan pada anime akan dicatat di sebuah file log yang bernama "change.log" dengan formatnya adalah [date] [type] [message]. Contoh: 
+1. [29/03/24] [ADD] Kanokari ditambahkan.
+2. [29/03/24] [EDIT] Kamis,Comedy,Kanokari,completed diubah menjadi Jumat,Action,Naruto,completed.
+3. [29/03/24] [DEL] Naruto berhasil dihapus.
+
+Hasil akhir :
+soal_4/
+    ├── change.log
+    ├── client/
+    │   └── client.c
+    ├── myanimelist.csv
+    └── server/
+        └── server.c
+
