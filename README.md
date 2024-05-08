@@ -130,12 +130,12 @@ Hasil dari penambahan, perubahan, dan penghapusan pada anime akan dicatat di seb
 3. [29/03/24] [DEL] Naruto berhasil dihapus.
 
 Hasil akhir :
+```bash
 soal_4/
-
     ├── change.log
     ├── client/
     │   └── client.c
     ├── myanimelist.csv
     └── server/
         └── server.c
-
+```
