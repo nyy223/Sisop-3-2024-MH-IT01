@@ -633,6 +633,6 @@ gcc -o client client.c
 
 #### Kendala yang dialami selama pengerjaan
 <img width="1440" alt="kendala no4 (command gajalan)" src="https://github.com/nyy223/Sisop-3-2024-MH-IT01/assets/80509033/0033aac8-0740-4835-afa2-361060fa4473">
-Kendala : Saat memasukkan command sesuai dengan ketentuan di kode, program tidak berjalan dan memberi respon. Sehingga harus di ctrl+C untuk keluar dari program.
+* Kendala : Saat memasukkan command sesuai dengan ketentuan di kode, program tidak berjalan dan memberi respon. Sehingga harus di ctrl+C untuk keluar dari program.
 
-Solusi : Di client.c, saya menambahkan fungsi untuk mengirim perintah dari client ke server dan fungsi untuk menerima respons yang dikirim oleh server 
+* Solusi : Di client.c, saya menambahkan fungsi untuk mengirim perintah dari client ke server dan fungsi untuk menerima respons yang dikirim oleh server 
