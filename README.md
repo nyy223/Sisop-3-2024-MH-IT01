@@ -612,6 +612,17 @@ Menerima koneksi dari klien menggunakan accept() system call. Ini akan membuat s
 ```
 Server berada dalam loop yang terus berjalan selama klien terhubung dan tidak mengirimkan perintah "exit". Di dalam loop ini, akan dipanggil funsgi-fungsi yang sudah dibuat sesuai dengan command yang diberikan oleh client. Saat menerima perintah dari klien, server akan mengeksekusi aksi yang sesuai berdasarkan perintah yang diterima. Setelah selesai, socket baru dan socket server ditutup.
 
+5. Mengkompilasi program client.c dan server.c
+```bash
+gcc -o server server.c -lcsv
+gcc -o client client.c
+```
+6. Menjalankan program client.c dan server.c
+```bash
+./server
+./client
+```
+
 #### Dokumentasi Pengerjaan
 <img width="1440" alt="Screenshot 2024-05-09 at 18 48 17" src="https://github.com/nyy223/Sisop-3-2024-MH-IT01/assets/80509033/f826ad03-5eb9-4346-9c83-863ad3eaecbc">
 <img width="1440" alt="Screenshot 2024-05-09 at 18 49 33" src="https://github.com/nyy223/Sisop-3-2024-MH-IT01/assets/80509033/2c000fe2-835f-4650-8ca1-0fdb23fb606e">
