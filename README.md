@@ -620,6 +620,7 @@ Server berada dalam loop yang terus berjalan selama klien terhubung dan tidak me
 <img width="1440" alt="Screenshot 2024-05-09 at 18 50 42" src="https://github.com/nyy223/Sisop-3-2024-MH-IT01/assets/80509033/c8020303-39f8-4d2f-8384-8c5cd59d6dcf">
 <img width="696" alt="Screenshot 2024-05-09 at 18 51 06" src="https://github.com/nyy223/Sisop-3-2024-MH-IT01/assets/80509033/6ae67e26-e603-4c5b-a4e6-777ec39b2d1e">
 
-
-
-
+#### Kendala yang dialami selama pengerjaan
+<img width="1440" alt="kendala no4 (command gajalan)" src="https://github.com/nyy223/Sisop-3-2024-MH-IT01/assets/80509033/0033aac8-0740-4835-afa2-361060fa4473">
+Kendala : Saat memasukkan command sesuai dengan ketentuan di kode, program tidak berjalan dan memberi respon. Sehingga harus di ctrl+C untuk keluar dari program.
+Solusi : Di client.c, saya menambahkan fungsi untuk mengirim perintah dari client ke server dan fungsi untuk menerima respons yang dikirim oleh server 
