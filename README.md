@@ -226,6 +226,7 @@ Fungsi connect() digunakan untuk menghubungkan socket client ke server.
 }
 ```
 Pada bagian ini, program masuk ke dalam loop tak terbatas. Pengguna diminta untuk memasukkan perintah. Perintah tersebut dikirim ke server menggunakan fungsi sendCommand(). Jika perintah adalah "exit", program keluar dari loop. Setelah mengirim perintah, program menerima respons dari server menggunakan fungsi receiveResponse() dan mencetaknya ke layar. Setelah keluar dari loop, koneksi socket ditutup dan program selesai.
+
 4. Masuk ke folder "server", lalu membuat sebuah file bernama "server.c"
 ### server.c
 ```bash
