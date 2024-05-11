@@ -807,6 +807,481 @@ Menampilkan pesan hasil konversi yang dibuat oleh child process.
         ├── paddock.c
         └── race.log
 
+### Penyelesaian
+#### actions.c
+	#include <stdio.h>
+	#include <string.h>
+	
+	const char* checkGap(float gap) {
+	    if (gap < 3.5) return "Gogogo";
+	    else if (gap <= 10) return "Push";
+	    else return "Stay out of trouble";
+	}
+	
+	const char* checkFuel(float fuel) {
+	    if (fuel > 80) return "Push Push Push";
+	    else if (fuel > 50) return "You can go";
+	    else return "Conserve Fuel";
+	}
+	
+	const char* checkTire(int tireWear) {
+	    if (tireWear > 80) return "Go Push Go Push";
+	    else if (tireWear > 50) return "Good Tire Wear";
+	    else if (tireWear >= 30) return "Conserve Your Tire";
+	    else return "Box Box Box";
+	}
+	
+	const char* tireChange(const char* tireType) {
+	    if (strcmp(tireType, "Soft") == 0) return "Mediums Ready";
+	    else if (strcmp(tireType, "Medium") == 0) return "Box for Softs";
+	    return "Unknown Tire Type";
+	}
+
+#### driver.c
+	#include <stdio.h>
+	#include <stdlib.h>
+	#include <string.h>
+	#include <sys/socket.h>
+	#include <arpa/inet.h>
+	#include <unistd.h>
+	
+	#define PORT 8080
+	
+	int main(int argc, char *argv[]) {
+	    int sock = 0, valread;
+	    struct sockaddr_in serv_addr;
+	    char buffer[1024] = {0};
+	    char command[1024];
+	    char *cmd = NULL;
+	    char *info = NULL;
+	
+	    for (int i = 1; i < argc; i++) {
+	        if (strcmp(argv[i], "-c") == 0 && i + 1 < argc) {
+	            cmd = argv[++i];
+	        } else if (strcmp(argv[i], "-i") == 0 && i + 1 < argc) {
+	            info = argv[++i];
+	        }
+	    }
+	
+	    if (!cmd || !info) {
+	        if (argc == 3) {
+	            cmd = argv[1];
+	            info = argv[2];
+	        } else {
+	            printf("Usage: ./driver -c [command] -i [value] or ./driver [command] [value]\n");
+	            return -1;
+	        }
+	    }
+	
+	    if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+	        printf("\nSocket creation error \n");
+	        return -1;
+	    }
+	
+	    serv_addr.sin_family = AF_INET;
+	    serv_addr.sin_port = htons(PORT);
+	
+	    if (inet_pton(AF_INET, "127.0.0.1", &serv_addr.sin_addr) <= 0) {
+	        printf("\nInvalid address/ Address not supported \n");
+	        return -1;
+	    }
+	
+	    if (connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
+	        printf("\nConnection Failed \n");
+	        return -1;
+	    }
+	
+	    sprintf(command, "%s %s", cmd, info);
+	    send(sock, command, strlen(command), 0);
+	    valread = read(sock, buffer, 1024);
+	    printf("[Driver] : [%s] [%s]\n", cmd, info);
+	    printf("[Paddock]: [%s]\n", buffer);
+	
+	    close(sock);
+	    return 0;
+	}
+
+#### paddock.c
+	#include <stdio.h>
+	#include <unistd.h>
+	#include <sys/types.h>
+	#include <sys/socket.h>
+	#include <netinet/in.h>
+	#include <string.h>
+	#include <stdlib.h>
+	#include <time.h>
+	#include "actions.c"
+	
+	#define PORT 8080
+	
+	void logMessage(const char* source, const char* command, const char* info) {
+	    FILE* logFile = fopen("race.log", "a");
+	    time_t now = time(0);
+	    struct tm *tm = localtime(&now);
+	    fprintf(logFile, "[%s] [%02d/%02d/%04d %02d:%02d:%02d]: [%s] [%s]\n", source, tm->tm_mday, tm->tm_mon+1, tm->tm_year+1900, tm->tm_hour, tm->tm_min, tm->tm_sec, command, info);
+	    fclose(logFile);
+	}
+	
+	int main() {
+	    int server_fd, new_socket, valread;
+	    struct sockaddr_in address;
+	    int opt = 1;
+	    int addrlen = sizeof(address);
+	    char buffer[1024] = {0};
+	    char response[1024];
+	
+	    if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) == 0) {
+	        perror("socket failed");
+	        exit(EXIT_FAILURE);
+	    }
+	
+	    if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &opt, sizeof(opt))) {
+	        perror("setsockopt");
+	        exit(EXIT_FAILURE);
+	    }
+	
+	    address.sin_family = AF_INET;
+	    address.sin_addr.s_addr = INADDR_ANY;
+	    address.sin_port = htons(PORT);
+	
+	    if (bind(server_fd, (struct sockaddr *)&address, sizeof(address)) < 0) {
+	        perror("bind failed");
+	        exit(EXIT_FAILURE);
+	    }
+	
+	    if (listen(server_fd, 3) < 0) {
+	        perror("listen");
+	        exit(EXIT_FAILURE);
+	    }
+	
+	    while (1) {
+	        if ((new_socket = accept(server_fd, (struct sockaddr *)&address, (socklen_t*)&addrlen)) < 0) {
+	            perror("accept");
+	            continue;
+	        }
+	
+	        valread = read(new_socket, buffer, 1024);
+	        if (valread > 0) {
+	            buffer[valread] = '\0';
+	            char *command = strtok(buffer, " ");
+	            char *value = strtok(NULL, " ");
+	
+	            if (command && value) {
+	                if (strcmp(command, "Gap") == 0) {
+	                    float gap = atof(value);
+	                    strcpy(response, checkGap(gap));
+	                } else if (strcmp(command, "Fuel") == 0) {
+	                    float fuel = atof(value);
+	                    strcpy(response, checkFuel(fuel));
+	                } else if (strcmp(command, "Tire") == 0) {
+	                    int tireWear = atoi(value);
+	                    strcpy(response, checkTire(tireWear));
+	                } else if (strcmp(command, "TireChange") == 0) {
+	                    strcpy(response, tireChange(value));
+	                } else {
+	                    strcpy(response, "Unknown command");
+	                }
+	                logMessage("Driver", command, value);
+	                logMessage("Paddock", command, response);
+	                send(new_socket, response, strlen(response), 0);
+	            }
+	        }
+	
+	        close(new_socket);
+	    }
+	
+	    close(server_fd);
+	    return 0;
+	}
+
+### Penjelasan
+#### Pada bagian (a), kita diminta agar program actions.c, program berisi function yang bisa di call oleh paddock.c.
+	const char* checkGap(float gap) {
+	    if (gap < 3.5) return "Gogogo";
+	    else if (gap <= 10) return "Push";
+	    else return "Stay out of trouble";
+	}
+	
+	const char* checkFuel(float fuel) {
+	    if (fuel > 80) return "Push Push Push";
+	    else if (fuel > 50) return "You can go";
+	    else return "Conserve Fuel";
+	}
+	
+	const char* checkTire(int tireWear) {
+	    if (tireWear > 80) return "Go Push Go Push";
+	    else if (tireWear > 50) return "Good Tire Wear";
+	    else if (tireWear >= 30) return "Conserve Your Tire";
+	    else return "Box Box Box";
+	}
+	
+	const char* tireChange(const char* tireType) {
+	    if (strcmp(tireType, "Soft") == 0) return "Mediums Ready";
+	    else if (strcmp(tireType, "Medium") == 0) return "Box for Softs";
+	    return "Unknown Tire Type";
+	}
+##### Kode ini berisi fungsi checkGap, checkFuel, checkTire, dan tireChange didefinisikan untuk memeriksa dan mengembalikan tindakan yang sesuai berdasarkan input yang diberikan.
+
+#### Pada bagian (b), program action berisikan pengaturan untuk Gap, Fuel, Tire, dan Tire Change.
+	const char* checkGap(float gap) {
+	    if (gap < 3.5) return "Gogogo";
+	    else if (gap <= 10) return "Push";
+	    else return "Stay out of trouble";
+	}
+	
+	const char* checkFuel(float fuel) {
+	    if (fuel > 80) return "Push Push Push";
+	    else if (fuel > 50) return "You can go";
+	    else return "Conserve Fuel";
+	}
+	
+	const char* checkTire(int tireWear) {
+	    if (tireWear > 80) return "Go Push Go Push";
+	    else if (tireWear > 50) return "Good Tire Wear";
+	    else if (tireWear >= 30) return "Conserve Your Tire";
+	    else return "Box Box Box";
+	}
+	
+	const char* tireChange(const char* tireType) {
+	    if (strcmp(tireType, "Soft") == 0) return "Mediums Ready";
+	    else if (strcmp(tireType, "Medium") == 0) return "Box for Softs";
+	    return "Unknown Tire Type";
+	}
+##### Kode ini menerima parameter yang sesuai (gap, fuel, tireWear, tireType) dan mengembalikan string yang menunjukkan tindakan yang harus diambil.
+
+#### Pada bagian (c), program paddock.c berjalan secara daemon di background dan bisa terhubung dengan driver.c melalui socket RPC.
+	#include <stdio.h>
+	#include <unistd.h>
+	#include <sys/types.h>
+	#include <sys/socket.h>
+	#include <netinet/in.h>
+	#include <string.h>
+	#include <stdlib.h>
+	#include <time.h>
+	#include "actions.c"
+	
+	#define PORT 8080
+	
+	void logMessage(const char* source, const char* command, const char* info) {
+	    FILE* logFile = fopen("race.log", "a");
+	    time_t now = time(0);
+	    struct tm *tm = localtime(&now);
+	    fprintf(logFile, "[%s] [%02d/%02d/%04d %02d:%02d:%02d]: [%s] [%s]\n", source, tm->tm_mday, tm->tm_mon+1, tm->tm_year+1900, tm->tm_hour, tm->tm_min, tm->tm_sec, command, info);
+	    fclose(logFile);
+	}
+	
+	int main() {
+	    int server_fd, new_socket, valread;
+	    struct sockaddr_in address;
+	    int opt = 1;
+	    int addrlen = sizeof(address);
+	    char buffer[1024] = {0};
+	    char response[1024];
+	
+	    if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) == 0) {
+	        perror("socket failed");
+	        exit(EXIT_FAILURE);
+	    }
+	
+	    if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &opt, sizeof(opt))) {
+	        perror("setsockopt");
+	        exit(EXIT_FAILURE);
+	    }
+	
+	    address.sin_family = AF_INET;
+	    address.sin_addr.s_addr = INADDR_ANY;
+	    address.sin_port = htons(PORT);
+	
+	    if (bind(server_fd, (struct sockaddr *)&address, sizeof(address)) < 0) {
+	        perror("bind failed");
+	        exit(EXIT_FAILURE);
+	    }
+	
+	    if (listen(server_fd, 3) < 0) {
+	        perror("listen");
+	        exit(EXIT_FAILURE);
+	    }
+	
+	    while (1) {
+	        if ((new_socket = accept(server_fd, (struct sockaddr *)&address, (socklen_t*)&addrlen)) < 0) {
+	            perror("accept");
+	            continue;
+	        }
+	
+	        valread = read(new_socket, buffer, 1024);
+	        if (valread > 0) {
+	            buffer[valread] = '\0';
+	            char *command = strtok(buffer, " ");
+	            char *value = strtok(NULL, " ");
+	
+	            if (command && value) {
+	                if (strcmp(command, "Gap") == 0) {
+	                    float gap = atof(value);
+	                    strcpy(response, checkGap(gap));
+	                } else if (strcmp(command, "Fuel") == 0) {
+	                    float fuel = atof(value);
+	                    strcpy(response, checkFuel(fuel));
+	                } else if (strcmp(command, "Tire") == 0) {
+	                    int tireWear = atoi(value);
+	                    strcpy(response, checkTire(tireWear));
+	                } else if (strcmp(command, "TireChange") == 0) {
+	                    strcpy(response, tireChange(value));
+	                } else {
+	                    strcpy(response, "Unknown command");
+	                }
+	                logMessage("Driver", command, value);
+	                logMessage("Paddock", command, response);
+	                send(new_socket, response, strlen(response), 0);
+	            }
+	        }
+	
+	        close(new_socket);
+	    }
+	
+	    close(server_fd);
+	    return 0;
+	}
+##### Kode ini berguna agar paddock.c berfungsi sebagai server yang menerima koneksi dari driver.c, memproses perintah yang diterima, dan mengirimkan kembali hasilnya.
+
+#### Pada bagian (d), kita agar program paddock.c dapat call function yang berada di dalam actions.c.
+	if (command && value) {
+	    if (strcmp(command, "Gap") == 0) {
+	        float gap = atof(value);
+	        strcpy(response, checkGap(gap));
+	    } else if (strcmp(command, "Fuel") == 0) {
+	        float fuel = atof(value);
+	        strcpy(response, checkFuel(fuel));
+	    } else if (strcmp(command, "Tire") == 0) {
+	        int tireWear = atoi(value);
+	        strcpy(response, checkTire(tireWear));
+	    } else if (strcmp(command, "TireChange") == 0) {
+	        strcpy(response, tireChange(value));
+	    } else {
+	        strcpy(response, "Unknown command");
+	    }
+	    logMessage("Driver", command, value);
+	    logMessage("Paddock", command, response);
+	    send(new_socket, response, strlen(response), 0);
+	}
+##### Kode ini berguna agar paddock.c memanggil fungsi dari actions.c berdasarkan perintah yang diterima dari driver.c.
+
+#### Pada bagian (e), program paddock.c akan log semua percakapan antara paddock.c dan driver.c di dalam file race.log.
+	void logMessage(const char* source, const char* command, const char* info) {
+	    FILE* logFile = fopen("race.log", "a");
+	    time_t now = time(0);
+	    struct tm *tm = localtime(&now);
+	    fprintf(logFile, "[%s] [%02d/%02d/%04d %02d:%02d:%02d]: [%s] [%s]\n", source, tm->tm_mday, tm->tm_mon+1, tm->tm_year+1900, tm->tm_hour, tm->tm_min, tm->tm_sec, command, info);
+	    fclose(logFile);
+	}
+##### Kode ini berisikan fungsi logMessage mencatat semua percakapan ke dalam file race.log dengan format yang telah ditentukan.
+
+#### Pada bagian (f), kita diminta agar program driver.c bisa terhubung dengan paddock.c dan bisa mengirimkan pesan serta menerima pesan.
+	int main(int argc, char const *argv[]) {
+	    struct sockaddr_in address;
+	    int sock = 0, valread;
+	    struct sockaddr_in serv_addr;
+	    char buffer[1024] = {0};
+	    if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+	        printf("\n Socket creation error \n");
+	        return -1;
+	    }
+	
+	    serv_addr.sin_family = AF_INET;
+	    serv_addr.sin_port = htons(8080);
+	
+	    if (inet_pton(AF_INET, "127.0.0.1", &serv_addr.sin_addr) <= 0) {
+	        printf("\nInvalid address/ Address not supported \n");
+	        return -1;
+	    }
+	
+	    if (connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
+	        printf("\nConnection Failed \n");
+	        return -1;
+	    }
+	
+	    char *message = "Gap 3.4";
+	    send(sock, message, strlen(message), 0);
+	    printf("Gap message sent\n");
+	    valread = read(sock, buffer, 1024);
+	    printf("Paddock: %s\n", buffer);
+	    return 0;
+	}
+##### Kode ini berfungsi agar driver.c mengirimkan pesan ke paddock.c dan menerima respons serta menampilkan hasilnya.
+
+#### Pada bagian (g), kita diminta agar program bisa digunakan antar devices/OS.
+	// driver.c
+	if (inet_pton(AF_INET, "127.0.0.1", &serv_addr.sin_addr) <= 0) {
+	    printf("\nInvalid address/ Address not supported \n");
+	    return -1;
+	}
+	
+	// paddock.c
+	address.sin_addr.s_addr = INADDR_ANY;
+##### Driver (driver.c): inet_pton digunakan untuk mengonversi alamat IP ke format yang dapat digunakan oleh sockaddr_in. Paddock (paddock.c): INADDR_ANY memungkinkan server menerima koneksi dari semua alamat IP yang tersedia, mendukung koneksi dari device/OS yang berbeda.
+
+#### Pada bagian (h), kita diminta untuk mengaktifkan RPC call dari driver.c, bisa digunakan in-program CLI atau Argv (bebas) yang penting bisa send command seperti poin B dan menampilkan balasan dari paddock.c.
+	// driver.c
+	int main(int argc, char *argv[]) {
+	    int sock = 0, valread;
+	    struct sockaddr_in serv_addr;
+	    char buffer[1024] = {0};
+	    char command[1024];
+	    char *cmd = NULL;
+	    char *info = NULL;
+	
+	    for (int i = 1; i < argc; i++) {
+	        if (strcmp(argv[i], "-c") == 0 && i + 1 < argc) {
+	            cmd = argv[++i];
+	        } else if (strcmp(argv[i], "-i") == 0 && i + 1 < argc) {
+	            info = argv[++i];
+	        }
+	    }
+	
+	    if (!cmd || !info) {
+	        if (argc == 3) {
+	            cmd = argv[1];
+	            info = argv[2];
+	        } else {
+	            printf("Usage: ./driver -c [command] -i [value] or ./driver [command] [value]\n");
+	            return -1;
+	        }
+	    }
+	
+	    if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+	        printf("\nSocket creation error \n");
+	        return -1;
+	    }
+	
+	    serv_addr.sin_family = AF_INET;
+	    serv_addr.sin_port = htons(8080);
+	
+	    if (inet_pton(AF_INET, "127.0.0.1", &serv_addr.sin_addr) <= 0) {
+	        printf("\nInvalid address/ Address not supported \n");
+	        return -1;
+	    }
+	
+	    if (connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
+	        printf("\nConnection Failed \n");
+	        return -1;
+	    }
+	
+	    sprintf(command, "%s %s", cmd, info);
+	    send(sock, command, strlen(command), 0);
+	    valread = read(sock, buffer, 1024);
+	    printf("[Driver] : [%s] [%s]\n", cmd, info);
+	    printf("[Paddock]: [%s]\n", buffer);
+	
+	    close(sock);
+	    return 0;
+	}
+##### Kode ini menggunakan Argv yang dimana program menerima perintah dan nilai melalui argumen baris perintah dengan format -c [command] -i [value].
+
+### Dokumentasi
+![image](https://github.com/nyy223/Sisop-3-2024-MH-IT01/assets/151918510/830b656a-32ae-4076-8a26-02d1a0ceb76d)
+![image](https://github.com/nyy223/Sisop-3-2024-MH-IT01/assets/151918510/2d17fab3-8aa5-459a-83de-8e29fe361662)
+![image](https://github.com/nyy223/Sisop-3-2024-MH-IT01/assets/151918510/c8ff111c-99df-4af5-90ed-b99874bc70b8)
+![image](https://github.com/nyy223/Sisop-3-2024-MH-IT01/assets/151918510/2e8d572c-104f-46c9-a600-40f8bad2e16a)
+
 ## Soal 4
 > Nayla 5027231054
 
