@@ -69,6 +69,330 @@
     │   └── rate.c
     └── new-data
 
+### Penyelesaian
+#### auth.c
+	#include <stdio.h>
+	#include <stdlib.h>
+	#include <string.h>
+	#include <dirent.h>
+	#include <unistd.h>
+	#include <fcntl.h>
+	#include <sys/mman.h>
+	#include <sys/stat.h>
+	
+	#define SHM_NAME "/shm_csv_files"
+	#define SHM_SIZE 1024 * 1024
+	
+	int main() {
+	    DIR *d;
+	    struct dirent *dir;
+	    int shm_fd;
+	    char *shm_base, *shm_ptr;
+	
+	    shm_fd = shm_open(SHM_NAME, O_CREAT | O_RDWR, 0666);
+	    if (shm_fd == -1) {
+	        perror("Failed to open shared memory");
+	        return EXIT_FAILURE;
+	    }
+	    ftruncate(shm_fd, SHM_SIZE);
+	
+	    shm_base = mmap(0, SHM_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0);
+	    if (shm_base == MAP_FAILED) {
+	        perror("Failed to map shared memory");
+	        close(shm_fd);
+	        return EXIT_FAILURE;
+	    }
+	
+	    memset(shm_base, 0, SHM_SIZE);
+	    shm_ptr = shm_base;
+	
+	    d = opendir("./new-data");
+	    if (d) {
+	        while ((dir = readdir(d)) != NULL) {
+	            if (strstr(dir->d_name, ".csv") &&
+	                (strstr(dir->d_name, "trashcan") || strstr(dir->d_name, "parkinglot"))) {
+	                char filePath[1024];
+	                sprintf(filePath, "./new-data/%s", dir->d_name);
+	
+	                FILE *file = fopen(filePath, "r");
+	                if (file == NULL) {
+	                    perror("Failed to open file");
+	                    continue;
+	                }
+	
+	                int length = sprintf(shm_ptr, "%s\n", dir->d_name);
+	                shm_ptr += length;
+	
+	                char line[1024];
+	                while (fgets(line, sizeof(line), file)) {
+	                    if (strchr(line, ',') == NULL) continue;
+	                    line[strcspn(line, "\n")] = 0;
+	
+	                    length = snprintf(shm_ptr, SHM_SIZE - (shm_ptr - shm_base), "%s\n", line);
+	                    if (length > SHM_SIZE - (shm_ptr - shm_base)) {
+	                        fprintf(stderr, "Shared memory is full. Cannot store more data.\n");
+	                        break;
+	                    }
+	                    shm_ptr += length;
+	                }
+	
+	                *shm_ptr++ = '\n';
+	
+	                fclose(file);
+	            } else {
+	                char filePath[1024];
+	                sprintf(filePath, "./new-data/%s", dir->d_name);
+	                remove(filePath);
+	            }
+	        }
+	        closedir(d);
+	    }
+	
+	    munmap(shm_base, SHM_SIZE);
+	    close(shm_fd);
+	
+	    return 0;
+	}
+
+#### rate.c
+	#include <stdio.h>
+	#include <stdlib.h>
+	#include <string.h>
+	#include <fcntl.h>
+	#include <sys/mman.h>
+	#include <sys/stat.h>
+	#include <unistd.h>
+	
+	#define SHM_NAME "/shm_csv_files"
+	#define SHM_SIZE 1024 * 1024
+	#define MAX_LINE_LENGTH 1024
+	
+	int main() {
+	    int shm_fd;
+	    char *shm_base, *ptr;
+	
+	    shm_fd = shm_open(SHM_NAME, O_RDONLY, 0666);
+	    if (shm_fd == -1) {
+	        perror("Failed to open shared memory");
+	        return EXIT_FAILURE;
+	    }
+	
+	    shm_base = mmap(0, SHM_SIZE, PROT_READ, MAP_SHARED, shm_fd, 0);
+	    if (shm_base == MAP_FAILED) {
+	        perror("Failed to map shared memory");
+	        close(shm_fd);
+	        return EXIT_FAILURE;
+	    }
+	
+	    ptr = shm_base;
+	    while (*ptr != '\0') {
+	        char fileName[MAX_LINE_LENGTH];
+	        sscanf(ptr, "%[^\n]", fileName);
+	        ptr += strlen(fileName) + 1;
+	
+	        char bestName[MAX_LINE_LENGTH];
+	        float bestRating = 0.0, currentRating;
+	
+	        while (*ptr == '\n') ptr++;
+	
+	        while (*ptr != '\0' && *ptr != '\n') {
+	            char name[MAX_LINE_LENGTH];
+	            sscanf(ptr, "%[^,],%f", name, &currentRating);
+	            if (currentRating > bestRating) {
+	                bestRating = currentRating;
+	                strcpy(bestName, name);
+	            }
+	            while (*ptr != '\n' && *ptr != '\0') ptr++;
+	            if (*ptr == '\n') ptr++;
+	        }
+	
+	        char *type = strstr(fileName, "trashcan") ? "Trash Can" : "Parking Lot";
+	
+	        printf("Type: %s\nFilename: %s\n-------------------\nName: %s\nRating: %.1f\n\n", type, fileName, bestName, bestRating);
+	
+	        while (*ptr == '\n') ptr++;
+	    }
+	
+	    munmap(shm_base, SHM_SIZE);
+	    close(shm_fd);
+	
+	    return EXIT_SUCCESS;
+	}
+
+#### db.c
+	#include <stdio.h>
+	#include <stdlib.h>
+	#include <fcntl.h>
+	#include <sys/mman.h>
+	#include <sys/stat.h>
+	#include <time.h>
+	#include <string.h>
+	#include <unistd.h>
+	
+	#define SHM_NAME "/shm_csv_files"
+	#define SHM_SIZE 1024 * 1024
+	
+	int main() {
+	    int shm_fd;
+	    char *shm_base, *ptr;
+	
+	    shm_fd = shm_open(SHM_NAME, O_RDONLY, 0666);
+	    if (shm_fd == -1) {
+	        perror("Failed to open shared memory");
+	        return EXIT_FAILURE;
+	    }
+	
+	    shm_base = mmap(0, SHM_SIZE, PROT_READ, MAP_SHARED, shm_fd, 0);
+	    if (shm_base == MAP_FAILED) {
+	        perror("Failed to map shared memory");
+	        close(shm_fd);
+	        return EXIT_FAILURE;
+	    }
+	
+	    ptr = shm_base;
+	    char fileName[1024];
+	
+	    while (ptr < shm_base + SHM_SIZE && *ptr != '\0') {
+	        if (sscanf(ptr, "%[^\n]\n", fileName) == 1) {
+	            if (strstr(fileName, ".csv")) {
+	                char source[1024], dest[1024];
+	                sprintf(source, "/home/kali/PraktikumSisop3/Soal1/new-data/%s", fileName);
+	                sprintf(dest, "/home/kali/PraktikumSisop3/Soal1/microservices/database/%s", fileName);
+	
+	                if (access(source, F_OK) != -1) {
+	                    if (rename(source, dest) == 0) {
+	                        printf("Successfully moved file: %s\n", fileName);
+	                        FILE *logFile = fopen("/home/kali/PraktikumSisop3/Soal1/microservices/database/db.log", "a");
+	                        if (logFile) {
+	                            time_t now = time(NULL);
+	                            struct tm *t = localtime(&now);
+	                            const char* type = strstr(fileName, "trashcan") ? "Trash Can" : "Parking Lot";
+	
+	                            fprintf(logFile, "[%02d/%02d/%04d %02d:%02d:%02d] [%s] [%s]\n",
+	                                    t->tm_mday, t->tm_mon + 1, t->tm_year + 1900,
+	                                    t->tm_hour, t->tm_min, t->tm_sec,
+	                                    type,
+	                                    fileName);
+	                            fclose(logFile);
+	                        } else {
+	                            perror("Failed to open log file");
+	                        }
+	                    } else {
+	                        perror("Failed to move file");
+	                    }
+	                } else {
+	                    perror("File does not exist");
+	                }
+	            }
+	            ptr += strlen(fileName) + 1;
+	        } else {
+	            while (*ptr != '\n' && ptr < shm_base + SHM_SIZE) ptr++;
+	            ptr++;
+	        }
+	    }
+	
+	    munmap(shm_base, SHM_SIZE);
+	    close(shm_fd);
+	
+	    return EXIT_SUCCESS;
+	}
+
+### Penjelasan
+#### Pada bagian (a), file CSV yang masuk ke folder new-data harus berakhiran "trashcan" atau "parkinglot". Jika tidak, file tersebut akan dihapus.
+	if (strstr(dir->d_name, ".csv") &&
+	    (strstr(dir->d_name, "trashcan") || strstr(dir->d_name, "parkinglot"))) {
+	    char filePath[1024];
+	    sprintf(filePath, "./new-data/%s", dir->d_name);
+	    // Buka dan proses file
+	} else {
+	    char filePath[1024];
+	    sprintf(filePath, "./new-data/%s", dir->d_name);
+	    remove(filePath);
+	}
+##### Kode ini memeriksa apakah nama file mengandung ".csv" dan memiliki substring "trashcan" atau "parkinglot". Jika ya, file akan diproses lebih lanjut. Jika tidak, file akan dihapus dari direktori new-data.
+
+#### Pada bagian (b), kita diberikan format dalam file .csv nya.
+	belobog_trashcan.csv
+	name, rating
+	Qlipoth Fort, 9.7
+	Everwinter Hill, 8.7
+	Rivet Town, 6.0
+	
+	osaka_parkinglot.csv
+	name, rating
+	Dotonbori, 8.6
+	Kiseki, 9.7
+	Osaka Castle, 8.5
+##### Berikut adalah format yang diberikan.
+
+#### Pada bagian (c), kita diminta agar file CSV yang lolos tahap autentikasi akan dikirim ke shared memory.
+	int length = sprintf(shm_ptr, "%s\n", dir->d_name);
+	shm_ptr += length;
+	while (fgets(line, sizeof(line), file)) {
+	    if (strchr(line, ',') == NULL) continue;
+	    line[strcspn(line, "\n")] = 0;
+	    length = snprintf(shm_ptr, SHM_SIZE - (shm_ptr - shm_base), "%s\n", line);
+	    shm_ptr += length;
+	}
+##### Kode ini Menulis nama file yang telah diotorisasi ke shared memory dan membaca setiap baris dari file CSV, memastikan baris memiliki koma (sebagai pemisah kolom), lalu menulis baris tersebut ke shared memory.
+
+#### Pada bagian (d), kita diminta untuk mengambil data CSV dari shared memory dan memberikan output Tempat Sampah dan Parkiran dengan Rating Terbaik.
+	while (*ptr != '\0') {
+	    char fileName[MAX_LINE_LENGTH];
+	    sscanf(ptr, "%[^\n]", fileName);
+	    ptr += strlen(fileName) + 1;
+	    char bestName[MAX_LINE_LENGTH];
+	    float bestRating = 0.0, currentRating;
+	    while (*ptr == '\n') ptr++;
+	    while (*ptr != '\0' && *ptr != '\n') {
+	        char name[MAX_LINE_LENGTH];
+	        sscanf(ptr, "%[^,],%f", name, &currentRating);
+	        if (currentRating > bestRating) {
+	            bestRating = currentRating;
+	            strcpy(bestName, name);
+	        }
+	        while (*ptr != '\n' && *ptr != '\0') ptr++;
+	        if (*ptr == '\n') ptr++;
+	    }
+	    char *type = strstr(fileName, "trashcan") ? "Trash Can" : "Parking Lot";
+	    printf("Type: %s\nFilename: %s\n-------------------\nName: %s\nRating: %.1f\n\n", type, fileName, bestName, bestRating);
+	}
+##### Kode ini membaca nama file dari shared memory kemudian menginisialisasi variabel untuk menyimpan nama dan rating terbaik. Kode ini juga membaca dan membandingkan setiap baris data untuk menemukan rating tertinggi lalu menentukan apakah file adalah "Trash Can" atau "Parking Lot" berdasarkan nama file, lalu mencetak hasilnya.
+
+#### Pada bagian (e), kita diminta agar db.c memindahkan file dari new-data ke folder microservices/database menggunakan shared memory.
+	if (sscanf(ptr, "%[^\n]\n", fileName) == 1) {
+	    if (strstr(fileName, ".csv")) {
+	        char source[1024], dest[1024];
+	        sprintf(source, "/home/kali/PraktikumSisop3/Soal1/new-data/%s", fileName);
+	        sprintf(dest, "/home/kali/PraktikumSisop3/Soal1/microservices/database/%s", fileName);
+	        if (rename(source, dest) == 0) {
+	            printf("Successfully moved file: %s\n", fileName);
+	        }
+	    }
+	    ptr += strlen(fileName) + 1;
+	}
+##### Kode ini membaca nama file dari shared memory kemudian membaca nama file dari shared memory.
+
+#### Pada bagian (f), kita diminta agar semua file yang dipindahkan harus dicatat dalam db.log dengan format yang tertera.
+	FILE *logFile = fopen("/home/kali/PraktikumSisop3/Soal1/microservices/database/db.log", "a");
+	if (logFile) {
+	    time_t now = time(NULL);
+	    struct tm *t = localtime(&now);
+	    const char* type = strstr(fileName, "trashcan") ? "Trash Can" : "Parking Lot";
+	    fprintf(logFile, "[%02d/%02d/%04d %02d:%02d:%02d] [%s] [%s]\n",
+	            t->tm_mday, t->tm_mon + 1, t->tm_year + 1900,
+	            t->tm_hour, t->tm_min, t->tm_sec,
+	            type,
+	            fileName);
+	    fclose(logFile);
+	}
+##### Kode ini membuka file log db.log untuk ditulis lalu menentukan tipe file (Trash Can atau Parking Lot) dan terakhir menulis informasi file ke db.log.
+
+### Dokumentasi
+![image](https://github.com/nyy223/Sisop-3-2024-MH-IT01/assets/151918510/2b8b17f1-b35a-45e0-9d49-f6590e498113)
+![image](https://github.com/nyy223/Sisop-3-2024-MH-IT01/assets/151918510/a69a912b-9e75-4855-b768-2c49e5f28118)
+![image](https://github.com/nyy223/Sisop-3-2024-MH-IT01/assets/151918510/c8441547-625b-425a-a20f-f4abf2b46cae)
+
 ## Soal 2
 > Ryan (5027231046)
 ### Soal
