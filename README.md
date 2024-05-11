@@ -768,6 +768,12 @@ Mengirim Kembali: Mengirim teks kembali ke parent untuk dicetak.
 ```
 Menampilkan pesan hasil konversi yang dibuat oleh child process.
 
+### Dokumentasi
+![image](https://github.com/nyy223/Sisop-3-2024-MH-IT01/assets/162680331/a966bd4f-e763-4888-8996-4d55155a826f)
+![image](https://github.com/nyy223/Sisop-3-2024-MH-IT01/assets/162680331/0d7a866e-1d27-4263-a39d-ca9580fbd544)
+
+
+
 ## Soal 3
 > Rafael (5027231019)
 ### Soal
